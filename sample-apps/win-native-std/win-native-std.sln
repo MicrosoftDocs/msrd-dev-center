@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26403.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CalendarLib", "..\win-etc\calendar-lib\source\CalendarLib.vcxproj", "{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CalendarReader", "source\CalendarReader.vcxproj", "{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Debug|Any CPU.ActiveCfg = Release|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Debug|Any CPU.Build.0 = Release|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Debug|x86.ActiveCfg = Debug|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Debug|x86.Build.0 = Debug|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Release|Any CPU.ActiveCfg = Release|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Release|Any CPU.Build.0 = Release|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Release|x86.ActiveCfg = Release|Win32
+		{0E6F3CCD-1841-48C3-82FF-240D3D1277DF}.Release|x86.Build.0 = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Debug|Any CPU.ActiveCfg = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Debug|Any CPU.Build.0 = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Debug|x86.ActiveCfg = Debug|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Debug|x86.Build.0 = Debug|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Release|Any CPU.ActiveCfg = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Release|Any CPU.Build.0 = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Release|x86.ActiveCfg = Release|Win32
+		{A0A7E948-CA20-4371-A120-22A1D8DEBF7D}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
