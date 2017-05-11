@@ -4,7 +4,7 @@
 * (c) 2017 Microsoft Corp
 *
 * CalendarReader.cpp : Entry point for the sample application
-* containing planted defects used to demonstrate fuzzing effectiveness
+* containing planted bugs used to demonstrate fuzzing effectiveness
 *
 *********************************************************************/
 
@@ -27,6 +27,8 @@ int IsTextContentType(HANDLE e)
 		return 1;
 	}
 
+	char* contentType = GetContentType(e);
+
 	/* Planted Bug #10:	String-based stack buffer overflow
 	*
 	* BUG DESCRIPTION:	strcpy() is used to copy a content type string into an 8 byte buffer (ctype).
@@ -35,17 +37,23 @@ int IsTextContentType(HANDLE e)
 	*
 	* BUG IMPACT:		A skilled attacker can leverage this overflow to gain arbitrary code execution.
 	*
-	* BUG FIX:			Using a string copy function that performs correct bounds checking. In this case strcpy_s().
+	* BUG FIX:			Perform bounds checking, and as a backup, use a string copy function that
+	*					performs correct bounds checking, such as strcpy_s().
 	*/
 
 	// Toggle Bug
 	if (BugIsOn(BUG_10))
 	{
-		strcpy(ctype, GetContentType(e));
+		strcpy(ctype, contentType); // Bug #10
 	}
 	else
 	{
-		strcpy_s(ctype, GetContentType(e));
+		if (strlen(contentType) > sizeof(ctype))
+		{
+			printf("Cannot determine type due to overflow\n");
+			return 1;
+		}
+		strcpy_s(ctype, contentType);
 	}
 
 	if (strstr(ctype, "text"))
@@ -167,42 +175,68 @@ bool FileExists(const char * filePath)
 }
 
 /// <summary>
-///
+/// Entry point.  Call CalendarReader.exe with a path; add an optional
+/// -nobugs switch after to turn off all the bugs
 /// </summary>
 HRESULT main(int argc, char* argv[])
 {
-	printf("Microsoft Security Risk Detection Sample Code\n");
-
-	BugOff(TRYEXCEPT);
-	const char* filePath = argv[1];
-
 	HANDLE calhandle = NULL;
-	//HANDLE calsrc = NULL;
-	//HANDLE caldst = NULL;
 	HRESULT hr = NULL;
 
-	if (argc == 2 && FileExists(filePath))
-	{
-		printf("Parsing calendar file: %s\n", filePath);
-		PVOID psys = &system;
-		printf("system(): 0x%p\n\n", psys);
+	printf("-------------------------------------------------\n");
+	printf("Microsoft Security Risk Detection: CalendarReader\n");
 
-		calhandle = CreateCalendarFromFileNameInput(filePath);
-		if (!calhandle)
-		{
-			printf("Failure parsing file\n");
-			exit(0);
-		}
-
-		hr = PrintCalendar(calhandle);
-	}
-	else
+	if (argc < 2 || argc > 3)
 	{
-		printf("Usage: CalendarReader.exe [full path to calendar file]\n");
+		goto PRINT_USAGE_EXIT;
 	}
+
+	const char* filePath = argv[1];
+	// const char* filePath = R"(D:\set\path\manually\this\way.cal)";
+
+	if( !FileExists(filePath) )
+	{
+		goto PRINT_USAGE_EXIT;
+	}
+
+	BugOff(TRYEXCEPT);
+
+	if (argv[2]&& 0 == strcmp(argv[2], "-nobugs"))
+	{
+		BugOff(1);
+		BugOff(2);
+		BugOff(3);
+		BugOff(4);
+		BugOff(5);
+		BugOff(6);
+		BugOff(7);
+		BugOff(8);
+		BugOff(9);
+		BugOff(10);
+		printf("All planted bugs are disabled; BugBitmask:%d\n", BugBitmask);
+	}
+
+	printf("Parsing CAL file: %s\n", filePath);
+	//PVOID psys = &system;
+	//printf("system(): 0x%p\n\n", psys);
+
+	calhandle = CreateCalendarFromFileNameInput(filePath);
+	if (!calhandle)
+	{
+		printf("FAILURE PARSING FILE\n");
+		exit(1);
+	}
+
+	hr = PrintCalendar(calhandle);
 
 	// Uncomment to block exit:
-	//getchar();
+	// getchar();
 
 	return hr;
-}
+
+PRINT_USAGE_EXIT:
+	printf("Usage: CalendarReader.exe:\n");
+	printf("    [full path to calendar file]\n");
+	printf("    -nobugs (optional)\n");
+	return hr;
+ }

@@ -3,7 +3,8 @@
 * Developer Center Demo Application
 * (c) 2017 Microsoft Corp
 *
-* CalendarParser.cpp:  contains the calendar file parsing routines
+* CalendarParser.cpp:  calendar file parsing routines
+* containing planted bugs used to demonstrate fuzzing effectiveness
 *
 *********************************************************************/
 
@@ -41,8 +42,15 @@ int ParseInt(Buffer *pBuffer)
 /// </summary>
 CalString *ParseCalString(Buffer *pBuffer, CalStringType type)
 {
+	// Can be narrow or wide
+	
 	if (type == SHORTSTRING)
 	{
+		if (BUFFER_LEFTOVER(pBuffer) < sizeof(uint16_t))
+		{
+			return NULL;
+		}
+
 		uint16_t len = BUFFER_GETUSHORT(pBuffer);
 		BUFFER_ADVANCE(pBuffer, sizeof(len));
 
@@ -115,6 +123,11 @@ CalString *ParseCalString(Buffer *pBuffer, CalStringType type)
 	}
 	else if (type == LONGSTRING)
 	{
+		if (BUFFER_LEFTOVER(pBuffer) < sizeof(uint32_t))
+		{
+			return NULL;
+		}
+
 		uint32_t len = BUFFER_GETUINT(pBuffer);
 		BUFFER_ADVANCE(pBuffer, sizeof(len));
 
@@ -232,7 +245,7 @@ Contact *ParseContact(Buffer *pBuffer)
 
 	CalString *pszString; // Bug #2: pointer declared but not initialized
 
-						  // Toggle Bug #2
+	// Toggle Bug #2
 	if (BugIsOff(BUG_2))
 	{
 		pszString = NULL;
@@ -322,15 +335,19 @@ Contact *ParseContact(Buffer *pBuffer)
 			}
 		}
 
-		// adjust len ....
+		// Adjust len
 		ptrdiff_t diff = BUFFER_GETCURRENT(pBuffer) - currbuf;
+		if ((uint32_t)diff > len)
+		{
+			goto ERROR_EXIT;
+		}
 		len -= diff;
 	}
 
 	// Ensure both Contact is valid:  Name and Email are defined
-	if (pContact->Name == NULL && pContact->Email == NULL)
+	if (pContact->Name == NULL || pContact->Email == NULL)
 	{
-		printf("ERROR: Contact must have at least one of name and email");
+		printf("ERROR: Contact must have both valid Name and Email");
 		goto ERROR_EXIT;
 	}
 
@@ -490,7 +507,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 
 	unsigned int totlen = attachmentCount * sizeof(Attachment); // Bug #3: Integer overflow via multiplication
 
-																// Toggle Bug #3
+	// Toggle Bug #3
 	if (BugIsOff(BUG_3))
 	{
 		if (attachmentCount > UINT_MAX / sizeof(Attachment))
@@ -525,7 +542,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 		currentAttachment->Blob = pBlob;		// Bug #3: memory corruption in copy loop
 		currentAttachment->Name = pszBlobName;	// Bug #3: memory corruption in copy loop
 
-												/* Planted Bug #4:	Double free
+		/* Planted Bug #4:	Double free
 												*
 												* BUG DESCRIPTION:	A double free is really just a special case of a use after free. In the
 												*					case here, at this point both currentAttachment->blob and blob point to
@@ -547,7 +564,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 												*					to reset blob and s, by setting them to NULL.
 												*/
 
-												// Toggle Bug #4
+		// Toggle Bug #4
 		if (BugIsOff(BUG_4))
 		{
 			pBlob = NULL;
@@ -658,29 +675,34 @@ int SkipElement(Buffer *pBuffer)
 /// </summary>
 int ValidateEntry(CalendarEntry *pEntry)
 {
-	if (pEntry->EntryType == 0)
+	if (!pEntry)
 	{
-		printf("Invalid CalendarEntry: EntryType is 0");
+		printf("Invalid CalendarEntry: Corruption\n");
+		return -1;
+	}
+	else if (pEntry->EntryType == 0)
+	{
+		printf("Invalid CalendarEntry: EntryType is 0\n");
 		return -1;
 	}
 	else if (pEntry->Sender == NULL)
 	{
-		printf("Invalid CalendarEntry: Sender is NULL");
+		printf("Invalid CalendarEntry: Sender is NULL\n");
 		return -1;
 	}
 	else if (pEntry->StartTime == NULL)
 	{
-		printf("Invalid CalendarEntry: StartTime is NULL");
+		printf("Invalid CalendarEntry: StartTime is NULL\n");
 		return -1;
 	}
 	else if (pEntry->TimeZone == NULL)
 	{
-		printf("Invalid CalendarEntry: TimeZone is NULL");
+		printf("Invalid CalendarEntry: TimeZone is NULL\n");
 		return -1;
 	}
 	else if (pEntry->Duration == NULL)
 	{
-		printf("Invalid CalendarEntry: Duration is NULL");
+		printf("Invalid CalendarEntry: Duration is NULL\n");
 		return -1;
 	}
 	// TODO: if we make this mandatory, update calendar-writer
@@ -698,15 +720,13 @@ int ValidateEntry(CalendarEntry *pEntry)
 /// </summary>
 Calendar *ParseInput(unsigned char *in, size_t len)
 {
-	printf("PARSING CALENDAR FILE\n");
-
 	int err;
 	int entryCount = 0;
 	int entryCountCurrent = 0;
 	int version = 0;
 	int firstEntry = 1;
 	Calendar *pCalendar = NULL;
-	CalendarEntry *pCurrentEntry = NULL;	// Bug #6: initial pointer to current CalendarEntry is NULL
+	CalendarEntry *pCurrentEntry = NULL; // Bug #6: initial pointer to current CalendarEntry is NULL
 
 	Buffer *pBuffer = CreateBuffer(in, len);
 	if (!pBuffer)
@@ -765,12 +785,6 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 				}
 			}
 			printf("ENTRYCOUNT (%d)\n", entryCount);
-		}
-
-		else if (elementType == BUGBITMASK) // 0x10
-		{
-			BugBitmask = ParseInt(pBuffer);
-			printf("BUGBITMASK (%d)\n", BugBitmask);
 		}
 
 		else if (elementType == NEWENTRY) // 0x02

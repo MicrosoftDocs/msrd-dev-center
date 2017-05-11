@@ -26,8 +26,7 @@ enum ElementType
 	ATTACHMENT,     // 0x0D
 	END,            // 0x0E		Mandatory; must be last element
 	CONTENTTYPE,    // 0x0F
-	BUGBITMASK,     // 0x10
-	STRUCTBLOB      // 0x11 
+	STRUCTBLOB      // 0x11
 };
 
 enum ContactType

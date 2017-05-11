@@ -26,8 +26,8 @@ using namespace std;
 
 #define TRYEXCEPT 31
 
-#define BugOn(x)  BugBitmask |= (1 << x)
-#define BugOff(x) BugBitmask &= (~(1 << x))
+#define BugOn(x)  { BugBitmask |= (1 << x); printf("->BugOn(%d)\n", x); }
+#define BugOff(x) { BugBitmask &= (~(1 << x)); printf("->BugOff(%d)\n", x); }
 #define BugIsOn(x) BugBitmask & (1 << x)
 #define BugIsOff(x) !(BugBitmask & (1 << x))
 
