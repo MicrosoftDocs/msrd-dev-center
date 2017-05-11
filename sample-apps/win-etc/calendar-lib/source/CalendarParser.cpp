@@ -463,7 +463,8 @@ CalDate *ParseDate(Buffer *pBuffer)
 }
 
 /// <summary>
-/// Reads the content of one or more ATTACHMENT elements from the buffer into an Attachments struct that's returned
+/// Reads the content of one or more ATTACHMENT elements from the buffer into
+/// an Attachments object that's returned
 /// </summary>
 Attachments *ParseAttachments(Buffer *pBuffer)
 {
@@ -527,6 +528,8 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 
 	for (unsigned int i = 0; i < attachmentCount; i++, currentAttachment++)
 	{
+		// Parse and place content in local variables
+		
 		pszBlobName = ParseCalString(pBuffer, SHORTSTRING);
 		if (!pszBlobName)
 		{
@@ -543,26 +546,29 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 		currentAttachment->Name = pszBlobName;	// Bug #3: memory corruption in copy loop
 
 		/* Planted Bug #4:	Double free
-												*
-												* BUG DESCRIPTION:	A double free is really just a special case of a use after free. In the
-												*					case here, at this point both currentAttachment->blob and blob point to
-												*					the same thing (as well as currentAttachment->name and s pointing to the
-												*					same thing). If in the next iteration a goto ERROR_EXIT occurs (e.g.
-												*					ParseCalString() returns NULL) then the code at ERROR_EXIT will free blob
-												*					and attachment pAttachment. Since attachmnent a contains the blob pointer as well,
-												*					it gets freed twice.
-												*
-												* BUG IMPACT:		A skilled attacker will be able to leverage this bug to gain arbitrary
-												*					code execution. Exploitation will depend on the heap allocation
-												*					implementation and algorithms used.
-												*
-												* BUG FIX:			Fixing this issue really comes down to determining ownership of the data
-												*					blob and s point to. Right after blob is assigned to currentAttachment->blob
-												*					and s is assigned to currentAttachment->name, you can say that
-												*					currentAttachment->blob now owns whatever blob points to (similarly
-												*					currentAttachment->name now owns what s points to).  At that point you need
-												*					to reset blob and s, by setting them to NULL.
-												*/
+		*
+		* BUG DESCRIPTION:	While parsing ATTACHMENT elements in ParseAttachments(), there is a loop that iterates through
+		*					each;  the locally-scoped pointers pszBlobName and pBlob are assigned to currentAttachment->Name
+		*					and currentAttachment->Blob, respectively.
+		*					
+		*					However, if there's an error condition that causes execution to proceed to the ERROR_EXIT label,
+		*					such as if ParseCalString() returns NULL, then the error handler at ERROR_EXIT will free pBlob
+		*					and its attachment pAttachment.
+		*
+		*					Since pAttachment contains the pBlob pointer as well, pBlob will get freed twice.
+		*
+		* BUG IMPACT:		A skilled attacker will be able to leverage this bug to gain arbitrary
+		*					code execution. Exploitation will depend on the heap allocation
+		*					implementation and algorithms used.
+		*
+		* BUG FIX:			To fix the bug, it's necessary to set both pBlob and pszBlobName to NULL to
+		*					logically avoid the double free.  A word of caution, however:  at the point pBlob
+		*					is assigned to currentAttachment->Blob and pszBlobName is assigned to
+		*					currentAttachment->Name, they both 'own' the target values in the sense that
+		*					the execution context of each referent is impacted by the those values.  Our
+		*					fix works, but it's useful to trace the origin of the data that	pBlob and pszBlobName
+		*					to ensure the fix of setting to NULL does not cause unintended side effects.
+		*/
 
 		// Toggle Bug #4
 		if (BugIsOff(BUG_4))
@@ -577,7 +583,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 ERROR_EXIT:
 	DestroyCalString(pszBlobName);
 	DestroyBlob(pBlob);
-	DestroyAttachments(pAttachments);
+	DestroyAttachments(pAttachments); // Bug #4: will free embedded pBlob object that was just freed
 	return NULL;
 }
 

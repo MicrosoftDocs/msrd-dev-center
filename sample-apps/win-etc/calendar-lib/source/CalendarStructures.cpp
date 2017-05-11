@@ -408,7 +408,7 @@ void DestroyAttachments(Attachments *pAttachments)
 	int i;
 	for (i = 0; i < pAttachments->Count; i++)
 	{
-		DestroyAttachment(&(pAttachments->Attachment[i]));
+		DestroyAttachment(&(pAttachments->Attachment[i])); // Bug #4: pAttachments has already been freed
 	}
 
 	free(pAttachments);

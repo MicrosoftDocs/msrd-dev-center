@@ -224,10 +224,12 @@ HRESULT main(int argc, char* argv[])
 	if (!calhandle)
 	{
 		printf("FAILURE PARSING FILE\n");
-		exit(1);
+		hr = -1;
 	}
-
-	hr = PrintCalendar(calhandle);
+	else
+	{
+		hr = PrintCalendar(calhandle);
+	}
 
 	// Uncomment to block exit:
 	// getchar();
