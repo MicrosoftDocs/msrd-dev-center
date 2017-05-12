@@ -337,9 +337,12 @@ Contact *ParseContact(Buffer *pBuffer)
 
 		// Adjust len
 		ptrdiff_t diff = BUFFER_GETCURRENT(pBuffer) - currbuf;
-		if ((uint32_t)diff > len)
+		if (BugIsOff(BUG_7))
 		{
-			goto ERROR_EXIT;
+			if ((uint32_t)diff > len)
+			{
+				goto ERROR_EXIT;
+			}
 		}
 		len -= diff;
 	}
