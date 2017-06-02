@@ -28,99 +28,13 @@ extern "C"
 {
 	DllExport /*extern*/ unsigned int BugBitmask = ~0;
 
-	DllExport void *CreateCalendarFromMemoryInput(unsigned char *in, size_t len)
+	DllExport Calendar *ParseCalendarFileBuffer(unsigned char *in, size_t len)
 	{
-		if (BugIsOn(TRYEXCEPT))
-		{
-			__try
-			{
-				return ParseInput(in, len);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				return NULL;
-			}
-		}
-		else
-		{
-			return ParseInput(in, len);
-		}
+		printf("-> Parsing CAL file buffer\n");
+		return ParseInput(in, len);
 	}
 
-	DllExport void *CreateCalendarFromFileStreamInput(ifstream *inputfile)
-	{
-		inputfile->seekg(0, inputfile->end);
-		size_t size = (size_t)inputfile->tellg();
-		inputfile->seekg(0, inputfile->beg);
-
-		unsigned char * buffer = new unsigned char[size];
-		if (!buffer)
-		{
-			return NULL;
-		}
-		inputfile->read((char *)buffer, size);
-		inputfile->close();
-
-		void *p = CreateCalendarFromMemoryInput(buffer, size);
-		delete[] buffer;
-		return (void *)p;
-	}
-
-	DllExport void *CreateCalendarFromFilePtrInput(FILE *pFile)
-	{
-		fseek(pFile, 0L, SEEK_END);
-		size_t size = ftell(pFile);
-		fseek(pFile, 0L, SEEK_SET);
-
-		unsigned char *p = (unsigned char *)malloc(size);
-		if (!p)
-		{
-			return NULL;
-		}
-
-		fread(p, 1, size, pFile);
-		void *t = CreateCalendarFromMemoryInput(p, size);
-		free(p);
-		return (void *)t;
-	}
-
-	DllExport void *CreateCalendarFromFileWindowsHandleInput(HANDLE h)
-	{
-		DWORD size = GetFileSize(h, NULL);
-		HANDLE MappingHandle = CreateFileMapping(h, NULL, PAGE_READONLY, 0, 0, NULL);
-		if (MappingHandle == NULL)
-		{
-			return NULL;
-		}
-
-		void *p = MapViewOfFile(MappingHandle, FILE_MAP_READ, 0, 0, 0);
-		if (!p)
-		{
-			CloseHandle(MappingHandle);
-			return NULL;
-		}
-
-		void *t = CreateCalendarFromMemoryInput((unsigned char *)p, size);
-		UnmapViewOfFile(p);
-		CloseHandle(MappingHandle);
-		return t;
-	}
-
-	DllExport void *CreateCalendarFromFileNameInput(const char *pszFileName)
-	{
-		ifstream inputfile(pszFileName, ios::binary);
-		if (inputfile)
-		{
-			return CreateCalendarFromFileStreamInput(&inputfile);
-		}
-		else
-		{
-			printf("ERROR: no return from inputfile");
-			return NULL;
-		}
-	}
-
-	DllExport int MergeCalendars(void *dest, void *source)
+	DllExport HRESULT MergeCalendars(void *dest, void *source)
 	{
 		Calendar *dst = (Calendar *)dest;
 		Calendar *src = (Calendar *)source;
@@ -149,11 +63,11 @@ extern "C"
 
 		while (dstEntry->NextEntry) dstEntry = dstEntry->NextEntry;
 		dstEntry->NextEntry = copy; // todo set prev
-		return 0;
+		return S_OK;
 
 	ERROR_EXIT:
 		DestroyCalendarEntry(copy);
-		return -1;
+		return S_FALSE;
 	}
 
 	DllExport int GetCalendarEntryCount(Calendar *pCalendar)
@@ -161,12 +75,12 @@ extern "C"
 		return pCalendar->EntryCount;
 	}
 
-	DllExport CalendarEntry *FindFirstCalendarEntry(Calendar *pCalendar)
+	DllExport CalendarEntry *GetFirstCalendarEntry(Calendar *pCalendar)
 	{
 		return pCalendar->Entry;
 	}
 
-	DllExport CalendarEntry *FindNextCalendarEntry(CalendarEntry *pEntry)
+	DllExport CalendarEntry *GetNextCalendarEntry(CalendarEntry *pEntry)
 	{
 		if (!pEntry)
 		{
@@ -175,7 +89,7 @@ extern "C"
 		return pEntry->NextEntry;
 	}
 
-	DllExport enum EntryType GetCalendarType(CalendarEntry *pEntry)
+	DllExport enum EntryType GetCalendarEntryType(CalendarEntry *pEntry)
 	{
 		return pEntry->EntryType;
 	}
@@ -195,12 +109,12 @@ extern "C"
 		return (char *)pContact->Email->Short.Value;
 	}
 
-	DllExport Contact *FindFirstRecipient(CalendarEntry *pEntry)
+	DllExport Contact *GetFirstRecipient(CalendarEntry *pEntry)
 	{
 		return pEntry->Recipient;
 	}
 
-	DllExport Contact *FindNextRecipient(Contact *pContact)
+	DllExport Contact *GetNextRecipient(Contact *pContact)
 	{
 		if (!pContact)
 		{
@@ -218,49 +132,51 @@ extern "C"
 		else return NULL;
 	}
 
-	DllExport char *GetTimeZone(CalendarEntry *pEntry)
+	DllExport HRESULT GetStartDate(CalendarEntry *pEntry, int *year, int *month, int *day)
 	{
-		return (char *)pEntry->TimeZone->Short.Value;
-	}
-
-	DllExport int GetStartTime(CalendarEntry *pEntry, int *hours, int *minutes, int *seconds)
-	{
-		if (!hours || !minutes || !seconds)
+		if (!pEntry->StartDate || !year || !month || !day)
 		{
-			return -1;
-		}
-
-		*hours = pEntry->StartTime->Hour;
-		*minutes = pEntry->StartTime->Minute;
-		*seconds = pEntry->StartTime->Second;
-		return 0;
-	}
-
-	DllExport int GetStartDate(CalendarEntry *pEntry, int *year, int *month, int *day)
-	{
-		if (!year || !month || !day)
-		{
-			return -1;
+			return S_FALSE;
 		}
 
 		*year = pEntry->StartDate->Year;
 		*month = pEntry->StartDate->Month;
 		*day = pEntry->StartDate->Day;
 
-		return 0;
+		return S_OK;
 	}
 
-	DllExport int GetDuration(CalendarEntry *pEntry, int *hours, int *minutes, int *seconds)
+	DllExport HRESULT GetStartTime(CalendarEntry *pEntry, int *hours, int *minutes, int *seconds)
 	{
 		if (!hours || !minutes || !seconds)
 		{
-			return -1;
+			return S_FALSE;
+		}
+
+		*hours = pEntry->StartTime->Hour;
+		*minutes = pEntry->StartTime->Minute;
+		*seconds = pEntry->StartTime->Second;
+
+		return S_OK;
+	}
+
+	DllExport char *GetTimeZone(CalendarEntry *pEntry)
+	{
+		return (char *)pEntry->TimeZone->Short.Value;
+	}
+
+	DllExport HRESULT GetDuration(CalendarEntry *pEntry, int *hours, int *minutes, int *seconds)
+	{
+		if (!hours || !minutes || !seconds)
+		{
+			return S_FALSE;
 		}
 
 		*hours = pEntry->Duration->Hour;
 		*minutes = pEntry->Duration->Minute;
 		*seconds = pEntry->Duration->Second;
-		return 0;
+
+		return S_OK;
 	}
 
 	DllExport char *GetSubject(CalendarEntry *pEntry)
@@ -312,7 +228,7 @@ extern "C"
 		return pEntry->Attachments->Count;
 	}
 
-	DllExport Attachment *FindFirstAttachment(CalendarEntry *pEntry)
+	DllExport Attachment *GetFirstAttachment(CalendarEntry *pEntry)
 	{
 		if (!pEntry->Attachments)
 		{
@@ -321,7 +237,7 @@ extern "C"
 		return pEntry->Attachments->Attachment;
 	}
 
-	DllExport Attachment *FindNextAttachment(Attachment *a)
+	DllExport Attachment *GetNextAttachment(Attachment *a)
 	{
 		a++;
 		return a;
@@ -337,16 +253,16 @@ extern "C"
 		return a->Blob->Length;
 	}
 
-	DllExport int GetAttachmentBlob(Attachment *a, void *p, unsigned int len)
+	DllExport HRESULT GetAttachmentBlob(Attachment *a, void *p, unsigned int len)
 	{
-		int ret = -1;
+		HRESULT hr = S_FALSE;
 
 		if (!(len < a->Blob->Length))
 		{
 			memcpy(p, a->Blob->Data, a->Blob->Length);
-			ret = 0;
+			hr = S_OK;
 		}
 
-		return ret;
+		return hr;
 	}
 }

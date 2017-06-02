@@ -31,9 +31,9 @@
 
 //extern "C" unsigned int BugBitmask = ~0;
 
-#define BugOn(x)  (unsigned int)BugBitmask |= (1 << x)
-#define BugOff(x) (unsigned int)BugBitmask &= (~(1 << x))
-#define BugIsOn(x) (unsigned int)BugBitmask & (1 << x)
-#define BugIsOff(x) !((unsigned int)BugBitmask & (1 << x))
+#define EnableBug(x)  (unsigned int)BugBitmask |= (1 << x)
+#define DisableBug(x) (unsigned int)BugBitmask &= (~(1 << x))
+#define IsBugEnabled(x) (unsigned int)BugBitmask & (1 << x)
+#define IsBugDisabled(x) !((unsigned int)BugBitmask & (1 << x))
 
 // TODO: reference additional headers your program requires here

@@ -12,19 +12,20 @@
 #include <stdlib.h>
 #include <Windows.h>
 #include <stdio.h>
+#include "FileLoader.h"
 #include "CalendarLib.h"
 
 /// <summary>
 /// Returns true if the ContentType string is "text", false otherwise
 /// </summary>
 #pragma warning (disable: 4996) // Suppress compiler warning re: use of strcpy
-int IsTextContentType(HANDLE e)
+bool IsTextContentType(HANDLE e)
 {
 	char ctype[8];
 
 	if (!GetContentType(e))
 	{
-		return 1;
+		return false;
 	}
 
 	char* contentType = GetContentType(e);
@@ -42,26 +43,27 @@ int IsTextContentType(HANDLE e)
 	*/
 
 	// Toggle Bug
-	if (BugIsOn(BUG_10))
+	if (IsBugEnabled(BUG_10))
 	{
 		strcpy(ctype, contentType); // Bug #10
 	}
 	else
 	{
+		// strcpy_s only prevents the overflow; will still throw an
+		// invalid parameter exception without this check
 		if (strlen(contentType) > sizeof(ctype))
 		{
-			printf("Cannot determine type due to overflow\n");
-			return 1;
+			return false;
 		}
 		strcpy_s(ctype, contentType);
 	}
 
 	if (strstr(ctype, "text"))
 	{
-		return 1;
+		return true;
 	}
 
-	return 0;
+	return false;
 }
 
 /// <summary>
@@ -71,40 +73,56 @@ HRESULT PrintCalendar(HANDLE calhandle)
 {
 	printf("PRINTING CALENDAR\n");
 
-	int i, entryCount = GetCalendarEntryCount(calhandle);
-	printf("Number of entries: %d\n", entryCount);
+	int entryCount = GetCalendarEntryCount(calhandle);
+	printf("Entry count: %d\n", entryCount);
 
-	HANDLE e = FindFirstCalendarEntry(calhandle);
+	HANDLE e = GetFirstCalendarEntry(calhandle);
 	if (!e)
 	{
-		printf("FindFirstCalendarEntry() failed\n");
+		printf("No CalendarEntries found, exiting\n");
+		return S_FALSE;
 	}
 
-	for (i = 0; i < entryCount; i++)
+	for (int i = 0; i < entryCount; i++)
 	{
-		int hour, min, sec;
-		printf("  Type: %d\n", GetCalendarType(e)); // Bug #5: this function will dereference e (NULL the 2nd time)
-		printf("  From: %s <%s>\n", GetContactName(GetSender(e)), GetContactEmail(GetSender(e)));
-		GetStartTime(e, &hour, &min, &sec);
+		printf("PRINTING ENTRY %d\n", i);
 
-		HANDLE c = FindFirstRecipient(e);
+		HRESULT hr;
+		int year, month, day;
+		int hour, min, sec;
+
+		printf("  Type: %d\n", GetCalendarEntryType(e)); // Bug #5: this function will dereference e (NULL the 2nd time)
+
+		printf("  From: %s <%s>\n", GetContactName(GetSender(e)), GetContactEmail(GetSender(e)));
+
+		HANDLE c = GetFirstRecipient(e);
 		if (c)
 		{
 			printf("  To: ");
 			do
 			{
 				printf("%s <%s>, ", GetContactName(c), GetContactEmail(c));
-				c = FindNextRecipient(c);
+				c = GetNextRecipient(c);
 			} while (c);
 
 			printf("\n");
 		}
 
-		printf("  StartTime: %02d:%02d:%02d (%s)\n", hour, min, sec, GetTimeZone(e));
-		GetDuration(e, &hour, &min, &sec);
-		printf("  Duration: %02d:%02d:%02d\n", hour, min, sec);
 		printf("  Location: %s\n", GetLocation(e));
+
 		printf("  Subject: %s\n", GetSubject(e));
+
+		hr = GetStartDate(e, &year, &month, &day); // Field not mandatory, so check first
+		if (hr == S_OK)
+		{
+			printf("  StartDate: %02d/%02d/%02d\n", month, day, year);
+		}
+
+		hr = GetStartTime(e, &hour, &min, &sec);
+		printf("  StartTime: %02d:%02d:%02d (%s)\n", hour, min, sec, GetTimeZone(e));
+
+		hr = GetDuration(e, &hour, &min, &sec);
+		printf("  Duration: %02d:%02d:%02d\n", hour, min, sec);
 
 		if (GetContentType(e))
 		{
@@ -124,7 +142,7 @@ HRESULT PrintCalendar(HANDLE calhandle)
 			*/
 
 			// Toggle Bug
-			if (BugIsOn(BUG_9))
+			if (IsBugEnabled(BUG_9))
 			{
 				printf("  ContentType: ");
 				printf(GetContentType(e)); // Bug #9:  format specifiers appearing in incoming text will be evaluated
@@ -141,22 +159,24 @@ HRESULT PrintCalendar(HANDLE calhandle)
 			printf("  Content: %s\n", GetContent(e));
 		}
 
-		int nr = GetAttachmentCount(e);
-		if (nr)
+		int attachmentCount = GetAttachmentCount(e);
+		if (attachmentCount)
 		{
 			int j;
-			HANDLE a = FindFirstAttachment(e);
-			for (j = 0; j < nr; j++)
+			HANDLE a = GetFirstAttachment(e);
+			for (j = 0; j < attachmentCount; j++)
 			{
 				printf("  Attachment: %s\n", GetAttachmentName(a));
-				a = FindNextAttachment(a);
+				// TODO: Print attachment name
+
+				a = GetNextAttachment(a);
 			}
 		}
 
-		e = FindNextCalendarEntry(e); // Bug #5: second time through the loop, e is NULL
+		e = GetNextCalendarEntry(e); // Bug #5: second time through the loop, e is NULL
 	}
 
-	return 0;
+	return S_OK;
 }
 
 bool FileExists(const char * filePath)
@@ -183,8 +203,8 @@ HRESULT main(int argc, char* argv[])
 	HANDLE calhandle = NULL;
 	HRESULT hr = NULL;
 
-	printf("-------------------------------------------------\n");
-	printf("Microsoft Security Risk Detection: CalendarReader\n");
+	printf("------------------------------------------------------\n");
+	printf("Microsoft Security Risk Detection Demo: CalendarReader\n");
 
 	if (argc < 2 || argc > 3)
 	{
@@ -199,28 +219,27 @@ HRESULT main(int argc, char* argv[])
 		goto PRINT_USAGE_EXIT;
 	}
 
-	BugOff(TRYEXCEPT);
+	DisableBug(TRYEXCEPT);
 
 	if (argv[2]&& 0 == strcmp(argv[2], "-nobugs"))
 	{
-		BugOff(1);
-		BugOff(2);
-		BugOff(3);
-		BugOff(4);
-		BugOff(5);
-		BugOff(6);
-		BugOff(7);
-		BugOff(8);
-		BugOff(9);
-		BugOff(10);
-		printf("All planted bugs are disabled; BugBitmask:%d\n", BugBitmask);
+		DisableBug(1);
+		DisableBug(2);
+		DisableBug(3);
+		DisableBug(4);
+		DisableBug(5);
+		DisableBug(6);
+		DisableBug(7);
+		DisableBug(8);
+		DisableBug(9);
+		DisableBug(10);
+		printf("-> All planted bugs are disabled\n");
 	}
 
-	printf("Parsing CAL file: %s\n", filePath);
 	//PVOID psys = &system;
 	//printf("system(): 0x%p\n\n", psys);
 
-	calhandle = CreateCalendarFromFileNameInput(filePath);
+	calhandle = LoadCalendarFileFromPath(filePath);
 	if (!calhandle)
 	{
 		printf("FAILURE PARSING FILE\n");

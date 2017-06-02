@@ -87,7 +87,7 @@ CalString *ParseCalString(Buffer *pBuffer, CalStringType type)
 		unsigned short totlen = len + 1; //Bug #1 integer overflow (UINT16)
 
 		// Toggle Bug #1
-		if (BugIsOff(BUG_1))
+		if (IsBugDisabled(BUG_1))
 		{
 			if (totlen < len)
 			{
@@ -135,7 +135,7 @@ CalString *ParseCalString(Buffer *pBuffer, CalStringType type)
 		unsigned int totlen = len + 1; // Bug #1 integer overflow (UINT32)
 
 		// Toggle Bug #6
-		if (BugIsOff(BUG_6))
+		if (IsBugDisabled(BUG_6))
 		{
 			if (totlen < len)
 			{
@@ -216,6 +216,7 @@ CalString *ParseContactString(Buffer *pBuffer)
 /// Reads the content of an CONTACT element from the buffer into an Contact struct that's returned
 /// </summary>
 #pragma warning (disable: 4703) // Suppress compiler warning re: uninitialized pointer
+#pragma warning (disable: 4701) // Suppress compiler warning re: uninitialized local variable
 Contact *ParseContact(Buffer *pBuffer)
 {
 	/* Planted Bug #2:	Uninitialized variable
@@ -246,7 +247,7 @@ Contact *ParseContact(Buffer *pBuffer)
 	CalString *pszString; // Bug #2: pointer declared but not initialized
 
 	// Toggle Bug #2
-	if (BugIsOff(BUG_2))
+	if (IsBugDisabled(BUG_2))
 	{
 		pszString = NULL;
 	}
@@ -271,9 +272,8 @@ Contact *ParseContact(Buffer *pBuffer)
 		len -= 1;
 		unsigned char *currbuf = BUFFER_GETCURRENT(pBuffer);
 
-		switch (contactElementType)
+		if (contactElementType == CONTACTNAME)
 		{
-		case CONTACTNAME:
 			if (pContact->Name != NULL)
 			{
 				goto ERROR_EXIT;
@@ -287,9 +287,9 @@ Contact *ParseContact(Buffer *pBuffer)
 
 			pContact->Name = pszString;
 			pszString = NULL;
-			break;
-
-		case CONTACTEMAIL:
+		}
+		else if (contactElementType == CONTACTEMAIL)
+		{
 			if (pContact->Email != NULL)
 			{
 				goto ERROR_EXIT;
@@ -298,14 +298,15 @@ Contact *ParseContact(Buffer *pBuffer)
 			pszString = ParseContactString(pBuffer); // Bug #2: pszString is initialized
 			if (!pszString)
 			{
+				printf("-> ERROR: Could not parse ContactString value\n");
 				goto ERROR_EXIT;
 			}
 
 			pContact->Email = pszString;
 			pszString = NULL;
-			break;
-
-		default:
+		}
+		else
+		{
 			uint32_t elen = BUFFER_GETUINT(pBuffer);
 			BUFFER_ADVANCE(pBuffer, sizeof(elen));
 			if (BUFFER_LEFTOVER(pBuffer) < elen)
@@ -325,7 +326,7 @@ Contact *ParseContact(Buffer *pBuffer)
 			*/
 
 			// Toggle Bug #7
-			if (BugIsOff(BUG_7))
+			if (IsBugDisabled(BUG_7))
 			{
 				BUFFER_ADVANCE(pBuffer, elen);
 			}
@@ -337,7 +338,7 @@ Contact *ParseContact(Buffer *pBuffer)
 
 		// Adjust len
 		ptrdiff_t diff = BUFFER_GETCURRENT(pBuffer) - currbuf;
-		if (BugIsOff(BUG_7))
+		if (IsBugDisabled(BUG_7))
 		{
 			if ((uint32_t)diff > len)
 			{
@@ -512,7 +513,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 	unsigned int totlen = attachmentCount * sizeof(Attachment); // Bug #3: Integer overflow via multiplication
 
 	// Toggle Bug #3
-	if (BugIsOff(BUG_3))
+	if (IsBugDisabled(BUG_3))
 	{
 		if (attachmentCount > UINT_MAX / sizeof(Attachment))
 		{
@@ -542,6 +543,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 		pBlob = ParseBlob(pBuffer);
 		if (!pBlob)
 		{
+			printf("-> ERROR: Could not parse Blob value\n");
 			goto ERROR_EXIT;
 		}
 
@@ -574,7 +576,7 @@ Attachments *ParseAttachments(Buffer *pBuffer)
 		*/
 
 		// Toggle Bug #4
-		if (BugIsOff(BUG_4))
+		if (IsBugDisabled(BUG_4))
 		{
 			pBlob = NULL;
 			pszBlobName = NULL;
@@ -629,7 +631,7 @@ StructuredBlob *ParseStructuredBlob(Buffer *pBuffer)
 	*/
 
 	// Toggle Bug #8
-	if (BugIsOff(BUG_8))
+	if (IsBugDisabled(BUG_8))
 	{
 		if (!elementLength)
 		{
@@ -682,37 +684,39 @@ int SkipElement(Buffer *pBuffer)
 /// <summary>
 /// Returns true if all mandatory elements are present in the CalendarEntry, false otherwise
 /// </summary>
-int ValidateEntry(CalendarEntry *pEntry)
+bool IsValidEntry(CalendarEntry *pEntry)
 {
+	bool ret = true;
+	
 	if (!pEntry)
 	{
 		printf("Invalid CalendarEntry: Corruption\n");
-		return -1;
+		ret = false;
 	}
 	else if (pEntry->EntryType == 0)
 	{
 		printf("Invalid CalendarEntry: EntryType is 0\n");
-		return -1;
+		ret = false;
 	}
 	else if (pEntry->Sender == NULL)
 	{
 		printf("Invalid CalendarEntry: Sender is NULL\n");
-		return -1;
+		ret = false;
 	}
 	else if (pEntry->StartTime == NULL)
 	{
 		printf("Invalid CalendarEntry: StartTime is NULL\n");
-		return -1;
+		ret = false;
 	}
 	else if (pEntry->TimeZone == NULL)
 	{
 		printf("Invalid CalendarEntry: TimeZone is NULL\n");
-		return -1;
+		ret = false;
 	}
 	else if (pEntry->Duration == NULL)
 	{
 		printf("Invalid CalendarEntry: Duration is NULL\n");
-		return -1;
+		ret = false;
 	}
 	// TODO: if we make this mandatory, update calendar-writer
 	//else if (pEntry->StartDate == NULL)
@@ -720,20 +724,23 @@ int ValidateEntry(CalendarEntry *pEntry)
 	//	printf("Invalid CalendarEntry: Sender is NULL");
 	//	return -1;
 	//}
-	else return 0;
+
+	return ret;
 }
 
 /// <summary>
 /// The main parsing method; contains a loop that iterates through
-/// all the elements present in the file
+/// all the elements present in the incoming buffered CAL file data
 /// </summary>
 Calendar *ParseInput(unsigned char *in, size_t len)
 {
-	int err;
-	int entryCount = 0;
-	int entryCountCurrent = 0;
 	int version = 0;
-	int firstEntry = 1;
+	int entryCount = 0;					// From the file
+	int entryCountCurrent = 0;			// Running total
+	bool isValidpCurrentEntry = false;	// used to signal if the pCurrentEntry pointer is ready to be used
+	bool hasEndElement = false;
+	unsigned short elementCount = 0;
+
 	Calendar *pCalendar = NULL;
 	CalendarEntry *pCurrentEntry = NULL; // Bug #6: initial pointer to current CalendarEntry is NULL
 
@@ -746,9 +753,7 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 	// This is the main parse loop:  it will cycle through
 	// the buffer, identifying individual elements
 
-	unsigned short elementCount = 1;
-
-	while (BUFFER_LEFTOVER(pBuffer) >= 5)
+	while (BUFFER_LEFTOVER(pBuffer) >= 5) // Size of smallest element
 	{
 		enum EntryType entryType = NONE;
 		Contact *pContact = NULL;
@@ -756,13 +761,13 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 		CalTime *pTime = NULL;
 		CalDate *pDate = NULL;
 		Attachments *pAttachments = NULL;
-		StructuredBlob *pUnknown = NULL;
+		StructuredBlob *pStructBlob = NULL;
 
 		char elementType = BUFFER_GETCHAR(pBuffer);
 		BUFFER_ADVANCE(pBuffer, 1);
 
 		// Print the element ordinal and type; content will follow
-		printf(" -> #%d [Type:%d]: ", elementCount++, elementType);
+		printf("-> Parse E#%d-> [Type:%#04x]: ", ++elementCount, elementType);
 
 		// Normally a switch statement would be used here instead of a
 		// series of conditionals.  For demonstration purposes, however,
@@ -771,37 +776,41 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		if (elementType == VERSION) // 0x00
 		{
+			if (elementCount != 1)
+			{
+				printf("E#1 must be VERSION (0x00), exiting\n");
+				goto ERROR_EXIT;
+			}
+			
 			version = ParseVersion(pBuffer);
-			printf("VERSION (%d)\n", version);
+			printf("VERSION=%d\n", version);
 		}
 
 		else if (elementType == ENTRYCOUNT) // 0x01
 		{
-			if (!entryCount)
+			if (elementCount != 2)
 			{
-				entryCount = ParseEntryCount(pBuffer); // Bug #5: entryCount is recorded without validation
-				if (entryCount == -1)
-				{
-					goto ERROR_EXIT;
-				}
+				printf("-> Parse ERROR: E#2 must be ENTRYCOUNT (0x01), exiting\n");
+				goto ERROR_EXIT;
 			}
-			else
+
+			entryCount = ParseEntryCount(pBuffer); // Bug #5: entryCount is recorded without validation
+			if (entryCount < 0)
 			{
-				err = SkipElement(pBuffer);
-				if (err == -1)
-				{
-					goto ERROR_EXIT;
-				}
+				printf("\n-> ERROR: Could not parse ENTRYCOUNT element\n");
+				goto ERROR_EXIT;
 			}
-			printf("ENTRYCOUNT (%d)\n", entryCount);
+
+			printf("ENTRYCOUNT=%d\n", entryCount);
 		}
 
 		else if (elementType == NEWENTRY) // 0x02
 		{
-			if (firstEntry)
+			if (!isValidpCurrentEntry)
 			{
 				if (entryCount == 0 || version != 1) // currently only support version one
 				{
+					printf("-> ERROR: Version must be 1\n");
 					goto ERROR_EXIT;
 				}
 
@@ -809,30 +818,34 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 				pCalendar = CreateCalendar(version, entryCount);
 				if (!pCalendar)
 				{
+					printf("-> ERROR: Could not create Calendar\n");
 					goto ERROR_EXIT;
 				}
 
 				pCurrentEntry = CreateCalendarEntry();	// Bug #6: where pCurrentEntry should get initialized
 				if (!pCurrentEntry)
 				{
+					printf("-> ERROR: Could not create CalendarEntry pCurrentEntry\n");
 					goto ERROR_EXIT;
 				}
 
 				pCalendar->Entry = pCurrentEntry;
-				firstEntry = 0;
+				isValidpCurrentEntry = true;
 			}
 			else
 			{
+				// Add second and subsequent entries
 				CalendarEntry *pNextEntry;
-				err = ValidateEntry(pCurrentEntry);
-				if (err == -1)
+				if (!IsValidEntry(pCurrentEntry))
 				{
+					printf("-> ERROR: Invalid CalendarEntry\n");
 					goto ERROR_EXIT;
 				}
 
 				pNextEntry = CreateCalendarEntry();
 				if (!pNextEntry)
 				{
+					printf("-> ERROR: Could not create CalendarEntry pNextEntry\n");
 					goto ERROR_EXIT;
 				}
 
@@ -841,48 +854,64 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 				pCurrentEntry = pNextEntry;
 			}
 
-			err = SkipElement(pBuffer);
-			if (err == -1)
+			if (-1 == SkipElement(pBuffer))
 			{
+				printf("-> ERROR: Could not skip element\n");
 				goto ERROR_EXIT;
 			}
 
 			// Toggle Bug #5
-			if (BugIsOff(BUG_5))
+			if (IsBugDisabled(BUG_5))
 			{
 				entryCountCurrent++; // See "case END:" below for bug details
 			}
 
-			printf("NEWENTRY (Count: %d)\n", entryCount);
+			printf("NEWENTRY\n");
 		}
 
 		else if (elementType == ENTRYTYPE) // 0x03
 		{
-			if (firstEntry || pCurrentEntry->EntryType != 0)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->EntryType != 0)
+			{
+				printf("-> ERROR: ENTRYTYPE element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			entryType = ParseEntryType(pBuffer);
 			if (entryType == (enum EntryType) - 1)
 			{
+				printf("\n-> ERROR: Invalid ENTRYTYPE value\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->EntryType = entryType;
-			printf("ENTRYTYPE (%d)\n", entryType);
+			printf("ENTRYTYPE=%d\n", entryType);
 		}
 
 		else if (elementType == SENDER) // 0x04
 		{
-			if (firstEntry || pCurrentEntry->Sender)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->Sender)
+			{
+				printf("-> ERROR: SENDER element must be unique in the entry\n");
 				goto ERROR_EXIT; // only one sender
 			}
 
 			pContact = ParseContact(pBuffer);
 			if (!pContact)
 			{
+				printf("\n-> ERROR: Could not parse CONTACT element\n");
 				goto ERROR_EXIT;
 			}
 
@@ -897,14 +926,16 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		else if (elementType == RECIPIENT) // 0x05
 		{
-			if (firstEntry)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
 				goto ERROR_EXIT;
 			}
 
 			pContact = ParseContact(pBuffer);
 			if (!pContact)
 			{
+				printf("\n-> ERROR: could not parse RECIPIENT element\n");
 				goto ERROR_EXIT;
 			}
 
@@ -932,49 +963,65 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		else if (elementType == LOCATION) // 0x06
 		{
-			if (firstEntry || pCurrentEntry->Location)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->Location)
+			{
+				printf("-> ERROR: LOCATION element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pszString = ParseCalString(pBuffer, LONGSTRING);
 			if (!pszString)
 			{
+				printf("\n-> ERROR: Could not parse CalString value\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->Location = pszString;
 
-			printf
-			(
-				"LOCATION (type:%d)\n",
-				pCurrentEntry->Location->StringType
-			);
+			printf("LOCATION=%s\n", pCurrentEntry->Location->StringType == LONGSTRING
+				? pCurrentEntry->Location->Long.Value
+				: pCurrentEntry->Location->Short.Value);
 		}
 
 		else if (elementType == STARTTIME) // 0x07
 		{
-			if (firstEntry || pCurrentEntry->StartTime)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->StartTime)
+			{
+				printf("-> ERROR: STARTTIME element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pTime = ParseTime(pBuffer);
 			if (!pTime)
 			{
+				printf("\n-> ERROR: Could not parse STARTTIME element\n");
 				goto ERROR_EXIT;
 			}
 
 			if (pTime->Hour > 24 || pTime->Minute > 60 || pTime->Second > 60)
 			{
+				printf("-> ERROR: Invalid STARTTIME values\n");
 				DestroyCalTime(pTime);
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->StartTime = pTime;
+
 			printf
 			(
-				"STARTTIME (%d,%d,%d)\n",
+				"STARTTIME=%d,%d,%d\n",
 				pCurrentEntry->StartTime->Hour,
 				pCurrentEntry->StartTime->Minute,
 				pCurrentEntry->StartTime->Second
@@ -983,8 +1030,15 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		else if (elementType == TIMEZONE) // 0x08
 		{
-			if (firstEntry || pCurrentEntry->TimeZone)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->TimeZone)
+			{
+				printf("-> ERROR: TIMEZONE element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
@@ -992,116 +1046,156 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 			pszString = ParseCalString(pBuffer, SHORTSTRING);
 			if (!pszString)
 			{
+				printf("\n-> ERROR: Could not parse CalString object\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->TimeZone = pszString;
 
-			printf
-			(
-				"TIMEZONE (type:%d)\n",
-				pCurrentEntry->TimeZone->StringType
-			);
+			printf("TIMEZONE=%s\n", pCurrentEntry->TimeZone->StringType == LONGSTRING
+				? pCurrentEntry->TimeZone->Long.Value
+				: pCurrentEntry->TimeZone->Short.Value);
 		}
 
 		else if (elementType == DURATION) // 0x09
 		{
-			if (firstEntry || pCurrentEntry->Duration)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->Duration)
+			{
+				printf("-> ERROR: DURATION element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pTime = ParseTime(pBuffer);
 			if (!pTime)
 			{
+				printf("\n-> ERROR: Could not parse TIME element\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->Duration = pTime;
-			printf("DURATION (%d,%d,%d)\n", pCurrentEntry->Duration->Hour, pCurrentEntry->Duration->Minute, pCurrentEntry->Duration->Second);
+
+			printf("DURATION=%d,%d,%d\n",
+				pCurrentEntry->Duration->Hour,
+				pCurrentEntry->Duration->Minute,
+				pCurrentEntry->Duration->Second);
 		}
 
 		else if (elementType == STARTDATE) // 0x0A
 		{
-			if (firstEntry || pCurrentEntry->StartDate)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->StartDate)
+			{
+				printf("-> ERROR: STARTDATE element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pDate = ParseDate(pBuffer);
 			if (!pDate)
 			{
+				printf("\n-> ERROR: Could not create DATE object\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->StartDate = pDate;
-			printf("STARTDATE (%d,%d,%d)\n", pCurrentEntry->StartDate->Year, pCurrentEntry->StartDate->Month, pCurrentEntry->StartDate->Day);
+			printf("STARTDATE=%d,%d,%d\n",
+				pCurrentEntry->StartDate->Year,
+				pCurrentEntry->StartDate->Month,
+				pCurrentEntry->StartDate->Day);
 		}
 
 		else if (elementType == SUBJECT) // 0x0B
 		{
-			if (firstEntry || pCurrentEntry->Subject)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->Subject)
+			{
+				printf("-> ERROR: SUBJECT element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pszString = ParseCalString(pBuffer, LONGSTRING);
 			if (!pszString)
 			{
+				printf("\n-> ERROR: Could not parse CalString value\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->Subject = pszString;
 
-			printf
-			(
-				"SUBJECT (type:%d)\n",
-				pCurrentEntry->Subject->StringType
-			);
+			printf("SUBJECT=%s\n", pCurrentEntry->Subject->StringType == LONGSTRING
+				? pCurrentEntry->Subject->Long.Value
+				: pCurrentEntry->Subject->Short.Value);
 		}
 
 		else if (elementType == CONTENT) // 0x0C
 		{
-			if (firstEntry || pCurrentEntry->Content)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->Content)
+			{
+				printf("-> ERROR: CONTENT element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pszString = ParseCalString(pBuffer, LONGSTRING);
 			if (!pszString)
 			{
+				printf("\n-> ERROR: Could not parse CalString value\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->Content = pszString;
 
-			printf
-			(
-				"CONTENT (type:%d)\n",
-				pCurrentEntry->Content->StringType
-			);
+			printf("CONTENT=%s\n", pCurrentEntry->Content->StringType == LONGSTRING
+				? pCurrentEntry->Content->Long.Value
+				: pCurrentEntry->Content->Short.Value);
 		}
 
 		else if (elementType == CONTENTTYPE) // 0x0F
 		{
-			if (firstEntry || pCurrentEntry->ContentType)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
+				goto ERROR_EXIT;
+			}
+
+			if (pCurrentEntry->ContentType)
+			{
+				printf("-> ERROR: CONTENTTYPE element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pszString = ParseCalString(pBuffer, LONGSTRING);
 			if (!pszString)
 			{
+				printf("\n-> ERROR: Could not parse CalString value\n");
 				goto ERROR_EXIT;
 			}
 
 			pCurrentEntry->ContentType = pszString;
 
-			printf
-			(
-				"CONTENTTYPE (type:%d)\n",
-				pCurrentEntry->ContentType->StringType
-			);
+			printf("CONTENTTYPE=%s\n", pCurrentEntry->ContentType->StringType == LONGSTRING
+				? pCurrentEntry->ContentType->Long.Value
+				: pCurrentEntry->ContentType->Short.Value);
 		}
 
 		else if (elementType == ATTACHMENT) // 0x0D
@@ -1117,28 +1211,31 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 			*					code is used; if this were a service, an attacker could leverage this NULL pointer
 			*					dereference to cause a Denial of Service attack (DoS).
 			*
-			* BUG FIX:			In this case the firstEntry integer is used to signal if the CurrentEntry pointer
+			* BUG FIX:			In this case the isValidpCurrentEntry integer is used to signal if the CurrentEntry pointer
 			*					is ready to be used.  Simply adding a check to see if FirstEntry is nonzero  will
 			*					fix the problem.
 			*/
 
 			// Toggle Bug #6
-			if (BugIsOff(BUG_6))
+			if (IsBugDisabled(BUG_6))
 			{
-				if (firstEntry)
+				if (!isValidpCurrentEntry)
 				{
+					printf("-> ERROR: pCurrentEntry not instantiated\n");
 					goto ERROR_EXIT;
 				}
 			}
 
 			if (pCurrentEntry->Attachments) // Bug #6: pCurrentEntry is NULL
 			{
+				printf("-> ERROR: ATTACHMENT element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
 
 			pAttachments = ParseAttachments(pBuffer);
 			if (!pAttachments)
 			{
+				printf("\n-> ERROR: Could not parse ATTACHMENT element\n");
 				goto ERROR_EXIT;
 			}
 
@@ -1148,21 +1245,32 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		else if (elementType == STRUCTBLOB) // 0x11
 		{
-			if (firstEntry || pCurrentEntry->StructuredBlob)
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
 				goto ERROR_EXIT;
 			}
-			pUnknown = ParseStructuredBlob(pBuffer);
-			if (!pUnknown)
+
+			if (pCurrentEntry->StructuredBlob)
 			{
+				printf("-> ERROR: STRUCTBLOB element must be unique in the entry\n");
 				goto ERROR_EXIT;
 			}
-			pCurrentEntry->StructuredBlob = pUnknown;
+
+			pStructBlob = ParseStructuredBlob(pBuffer);
+			if (!pStructBlob)
+			{
+				printf("\n-> ERROR: Could not parse STRUCTBLOB element\n");
+				goto ERROR_EXIT;
+			}
+			pCurrentEntry->StructuredBlob = pStructBlob;
 			printf("STRUCTBLOB (Length:%d)\n", pCurrentEntry->StructuredBlob->TotalLength);
 		}
 
 		else if (elementType == END) // 0x0E
 		{
+			hasEndElement = true;
+
 			/* Planted Bug #5:	Unvalidated length field
 			*
 			* BUG DESCRIPTION:	We're at the end of the file (END element).  EntryCount had been read from
@@ -1179,10 +1287,11 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 			*/
 
 			// Toggle Bug #5
-			if (BugIsOff(BUG_5))
+			if (IsBugDisabled(BUG_5))
 			{
 				if (entryCount != entryCountCurrent)
 				{
+					printf("-> ERROR: ENTRYCOUNT value does match file contents\n");
 					goto ERROR_EXIT;
 				}
 			}
@@ -1193,15 +1302,17 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 
 		else
 		{
-			if (firstEntry)
+			// Ignore elements whose type is undefined
+
+			if (!isValidpCurrentEntry)
 			{
+				printf("-> ERROR: pCurrentEntry not instantiated\n");
 				goto ERROR_EXIT;
 			}
 
-			// Ignore elements whose type is undefined
-			err = SkipElement(pBuffer);
-			if (err == -1)
+			if (-1 == SkipElement(pBuffer))
 			{
+				printf("-> ERROR: Could not skip element\n");
 				goto ERROR_EXIT;
 			}
 
@@ -1209,9 +1320,14 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 		}
 	}
 
+	if(!hasEndElement)
+	{
+		printf("-> ERROR: file must terminate with a unique END element\n");
+		goto ERROR_EXIT;
+	}
+
 	// Ensure all the mandatory elements are present in the file
-	err = ValidateEntry(pCurrentEntry);
-	if (err == -1)
+	if (!IsValidEntry(pCurrentEntry))
 	{
 		goto ERROR_EXIT;
 	}
@@ -1225,5 +1341,5 @@ ERROR_EXIT:
 	DestroyBuffer(pBuffer);
 	DestroyCalendar(pCalendar);
 	pCalendar = NULL;
-	return pCalendar;
+	return NULL;
 }

@@ -26,10 +26,10 @@ using namespace std;
 
 #define TRYEXCEPT 31
 
-#define BugOn(x)  { BugBitmask |= (1 << x); printf("->BugOn(%d)\n", x); }
-#define BugOff(x) { BugBitmask &= (~(1 << x)); printf("->BugOff(%d)\n", x); }
-#define BugIsOn(x) BugBitmask & (1 << x)
-#define BugIsOff(x) !(BugBitmask & (1 << x))
+#define EnableBug(x)		{ BugBitmask |= (1 << x); /*printf("->EnableBug(%d)\n", x);*/ }
+#define DisableBug(x)		{ BugBitmask &= (~(1 << x)); /*printf("->DisableBug(%d)\n", x);*/ }
+#define IsBugEnabled(x)		BugBitmask & (1 << x)
+#define IsBugDisabled(x)	!(BugBitmask & (1 << x))
 
 #define DllImport   __declspec( dllimport )
 
@@ -37,39 +37,42 @@ extern "C"
 {
 	DllImport unsigned int BugBitmask;
 
-	void *CreateCalendarFromMemoryInput(unsigned char *in, size_t len);
-	void *CreateCalendarFromFileStreamInput(ifstream *inputfile);
-	void *CreateCalendarFromFilePtrInput(FILE *fp);
-	void *CreateCalendarFromFileWindowsHandleInput(HANDLE h);
-	void *CreateCalendarFromFileNameInput(const char *filename);
-	int MergeCalendars(void *dest, void *source);
+	HANDLE *ParseCalendarFileBuffer(unsigned char *in, size_t len);
+	HRESULT MergeCalendars(void *dest, void *source);
 
 	int GetCalendarEntryCount(HANDLE cal);
-	HANDLE FindFirstCalendarEntry(HANDLE cal);
-	HANDLE FindNextCalendarEntry(HANDLE entry);
-	enum EntryType GetCalendarType(HANDLE entry);
+	HANDLE GetFirstCalendarEntry(HANDLE cal);
+	HANDLE GetNextCalendarEntry(HANDLE entry);
+	enum EntryType GetCalendarEntryType(HANDLE entry);
 
 	HANDLE GetSender(HANDLE entry);
 	char *GetContactName(HANDLE c);
 	char *GetContactEmail(HANDLE c);
-	HANDLE FindFirstRecipient(HANDLE entry);
-	HANDLE FindNextRecipient(HANDLE c);
+	
+	HANDLE GetFirstRecipient(HANDLE entry);
+	HANDLE GetNextRecipient(HANDLE c);
 	
 	char *GetLocation(HANDLE entry);
+	
 	char *GetTimeZone(HANDLE entry);
-	int GetStartTime(HANDLE entry, int *hours, int *minutes, int *seconds);
-	int GetStartDate(HANDLE entry, int *year, int *month, int *day);
-	int GetDuration(HANDLE entry, int *hours, int *minutes, int *seconds);
+	
+	HRESULT GetStartTime(HANDLE entry, int *hours, int *minutes, int *seconds);
+	
+	HRESULT GetStartDate(HANDLE entry, int *year, int *month, int *day);
+	
+	HRESULT GetDuration(HANDLE entry, int *hours, int *minutes, int *seconds);
+	
 	char *GetSubject(HANDLE entry);
+
 	char *GetContent(HANDLE entry);
 	char *GetContentType(HANDLE entry);
 	unsigned int GetContentLength(HANDLE entry);
 	unsigned int GetContentData(HANDLE entry, PVOID dst, unsigned int len);
 
 	int GetAttachmentCount(HANDLE entry);
-	HANDLE FindFirstAttachment(HANDLE entry);
-	HANDLE FindNextAttachment(HANDLE a);
+	HANDLE GetFirstAttachment(HANDLE entry);
+	HANDLE GetNextAttachment(HANDLE a);
 	char *GetAttachmentName(HANDLE a);
 	unsigned int GetAttachmentBlobLength(HANDLE a);
-	int GetAttachmentBlob(HANDLE a, void *p, unsigned int len);
+	HRESULT GetAttachmentBlob(HANDLE a, void *p, unsigned int len);
 }
