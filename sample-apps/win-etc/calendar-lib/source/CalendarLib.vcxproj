@@ -59,6 +59,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;LIBCALENDAR_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <BufferSecurityCheck>true</BufferSecurityCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -76,6 +77,7 @@
       <SDLCheck>true</SDLCheck>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <BrowseInformation>true</BrowseInformation>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
