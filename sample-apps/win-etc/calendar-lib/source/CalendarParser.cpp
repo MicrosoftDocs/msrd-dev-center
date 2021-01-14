@@ -1279,7 +1279,7 @@ Calendar *ParseInput(unsigned char *in, size_t len)
 			*					The caller assumes that this count is valid.
 			*
 			* BUG IMPACT:		The impact of this issue depends on what the caller does with EntryCount. While the
-			*					specific impact depends on the caller, it's really the responsibilty of this to
+			*					specific impact depends on the caller, it's really the responsibility of this to
 			*					to validate EntryCount.
 			*
 			* BUG FIX:			Keep a running count of every entry seen (see above). Then, at the end see if our
